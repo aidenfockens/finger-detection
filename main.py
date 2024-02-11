@@ -3,18 +3,24 @@ import cv2
 
 cap = cv2.VideoCapture(0)  # 0 is usually the default webcam
 
-template_img = cv2.imread("filename.png")  # Load your template image
-template_img = template_img.astype('uint8')  # Ensure 8-bit format
-template_h, template_w = template_img.shape[:2]
+zero = cv2.imread("zero_fingers.png")  
+five = cv2.imread("five_fingers.png")
 
-template_h, template_w = template_img.shape[:2]
+if zero.ndim > 2:
+    zero = cv2.cvtColor(zero, cv2.COLOR_BGR2GRAY)
 
+if five.ndim > 2:
+    five = cv2.cvtColor(five, cv2.COLOR_BGR2GRAY)
+
+# Ensure 'zero' is of type uint8 if it isn't already
+zero = zero.astype('uint8')
+five = five.astype('uint8')
 
 if not cap.isOpened():
     print("Error: Could not open webcam")
     exit()
 
-
+prev_frame = None
 
 try:
     while True:
@@ -38,20 +44,33 @@ try:
         # Use template matching with cross correlation to iterate over each image to see if it matches the given image
         # create a bounding box around
 
-        # pyramid = [skin_mask]
-        # for i in range(3):  # Create 3 levels of pyramid for example
-        #     pyramid.append(cv2.pyrDown(pyramid[-1]))
+        pyramid = [skin_mask]
+        for i in range(3):  # Create 3 levels of pyramid for example
+            pyramid.append(cv2.pyrDown(pyramid[-1]))
+        count = 0
+        for level in pyramid:
+            count += 1
+            res = cv2.matchTemplate(level, zero, cv2.TM_CCOEFF_NORMED)
+            threshold = 0.8  # Set a threshold for detecting matches
+            min_val_zero, max_val_zero, min_loc, max_loc_zero = cv2.minMaxLoc(res)
 
-        # for level in pyramid:
-        #     res = cv2.matchTemplate(level, template_img, cv2.TM_CCOEFF_NORMED)
-        #     threshold = 0.8  # Set a threshold for detecting matches
-        #     loc = np.where(res >= threshold)
+            # Check if the maximum match value is above the threshold
+            if max_val_zero >= threshold:
+                print(f"Highest match of {max_val_zero} found at {max_loc_zero} in this pyramid level.")
+                
+                # If you want to draw a rectangle around the highest match
+                top_left_zero = max_loc_zero
+                bottom_right_zero = (top_left_zero[0] + zero.shape[1], top_left_zero[1] + zero.shape[0])
+                cv2.rectangle(level, top_left_zero, bottom_right_zero, (255, 0, 0), 2)
+            cv2.imshow(f"level_zero{count}", level)
+    
+            res = cv2.matchTemplate(level, five, cv2.TM_CCOEFF_NORMED)
+            threshold = 0.8  # Set a threshold for detecting matches
+            min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(res)
 
-        #     for pt in zip(*loc[::-1]):  # Switch x and y coordinates
-        #         cv2.rectangle(frame, pt, (pt[0] + template_w, pt[1] + template_h), (0, 255, 0), 2)
-
-        # cv2.imshow('Detected Areas', frame)
-
+    
+           
+                
   
 
 
@@ -59,9 +78,25 @@ try:
         # # Use cv2.bitwise_and to apply the mask on the original frame
         # skin = cv2.bitwise_and(frame, frame, mask=skin_mask)
 
+        if prev_frame is not None:
+            # Compute the absolute difference between current and previous frame
+            frame_diff = cv2.absdiff(prev_frame, frame)
+
+            # Optional: Apply thresholding to highlight significant differences
+            _, thresh = cv2.threshold(frame_diff, 25, 255, cv2.THRESH_BINARY)
+
+            # Display the thresholded difference
+            # cv2.imshow('Frame Difference', thresh)
+
+        # Update the previous frame with the current frame for the next iteration
+        prev_frame = frame.copy()
+
+
+        frame_grayscale = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
         # Step 5: Display the frame
-        cv2.imshow('Webcam - Grayscale', skin_mask)
+        # cv2.imshow('Webcam - Grayscale', skin_mask)
+        # cv2.imshow("Webcam, real imgs", frame_grayscale)
 
         # Break the loop when 'q' is pressed
         if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -75,3 +110,6 @@ finally:
         # Use template matching with cross correlation to iterate over each image to see if it matches the given image
         # create a bounding box around  
 
+
+
+# have our binary image 
