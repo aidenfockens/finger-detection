@@ -47,7 +47,7 @@ try:
         pyramid = [skin_mask]  # Start with the original image as the first level of the pyramid
         scaling_factor = 1.2  # For example, reduce size by a factor of 1.5
 
-        for i in range(4):  # Create 2 more levels for the pyramid, adjust as needed
+        for i in range(5):  # Create 2 more levels for the pyramid, adjust as needed
             # Calculate the new size
             new_width = int(pyramid[-1].shape[1] / scaling_factor)
             new_height = int(pyramid[-1].shape[0] / scaling_factor)
@@ -57,21 +57,37 @@ try:
             pyramid.append(next_level)
 
         count = -1
-        best_match_val = -1
-        best_match_loc = None
-        best_match_scale = 1
+        best_match_val_zero = -1
+        best_match_val_five = -1
+        best_match_loc_zero = None
+        best_match_loc_five = None
+        best_match_scale_zero = 1
+        best_match_scale_five = 1
 
         for level in pyramid:
             count += 1
+
+            current_scale = scaling_factor ** count 
+
+            res_zero = cv2.matchTemplate(level, zero, cv2.TM_CCOEFF_NORMED)
+            _, max_val_zero, _, max_loc_zero = cv2.minMaxLoc(res_zero)
+            if max_val_zero > best_match_val_zero:
+                best_match_val_zero = max_val_zero
+                best_match_loc_zero = max_loc_zero
+                best_match_scale_zero = current_scale
+
+            # Perform template matching for "five"
+            res_five = cv2.matchTemplate(level, five, cv2.TM_CCOEFF_NORMED)
+            _, max_val_five, _, max_loc_five = cv2.minMaxLoc(res_five)
+            if max_val_five > best_match_val_five:
+                best_match_val_five = max_val_five
+                best_match_loc_five = max_loc_five
+                best_match_scale_five = current_scale
+
             res = cv2.matchTemplate(level, zero, cv2.TM_CCOEFF_NORMED)
             threshold = 0.8  # Set a threshold for detecting matches
             min_val_zero, max_val_zero, min_loc, max_loc_zero = cv2.minMaxLoc(res)
 
-            if max_val_zero > best_match_val:
-                best_match_val = max_val_zero
-                best_match_loc = max_loc_zero
-                # Calculate the effective scale of this level relative to the original image
-                best_match_scale = scaling_factor ** count
 
 
             # Check if the maximum match value is above the threshold
@@ -96,6 +112,16 @@ try:
                 cv2.rectangle(level, top_left, bottom_right, (255, 0, 0), 2)
             cv2.imshow(f"level_five{count}", level)
 
+        
+        if best_match_val_zero > best_match_val_five:
+            hand_state = "Closed"
+            best_match_loc = best_match_loc_zero
+            best_match_scale = best_match_scale_zero
+        else:
+            hand_state = "Open"
+            best_match_loc = best_match_loc_five
+            best_match_scale = best_match_scale_five
+
 
         # # Step 4: Apply the mask to highlight skin color
         # # Use cv2.bitwise_and to apply the mask on the original frame
@@ -114,14 +140,31 @@ try:
         # Update the previous frame with the current frame for the next iteration
         prev_frame = frame.copy()
 
-        if best_match_loc and max_val_zero >0.7:
+        if best_match_loc and (max_val_zero > 0.7 or max_val_five > 0.7):
             original_loc = (int(best_match_loc[0] * best_match_scale), int(best_match_loc[1] * best_match_scale))
-            original_size = (int(zero.shape[1] * best_match_scale), int(zero.shape[0] * best_match_scale))
+            if hand_state == "Closed":
+                original_size = (int(zero.shape[1] * best_match_scale), int(zero.shape[0] * best_match_scale))
+            else:
+                original_size = (int(five.shape[1] * best_match_scale), int(five.shape[0] * best_match_scale))
             top_left = original_loc
             bottom_right = (top_left[0] + original_size[0], top_left[1] + original_size[1])
 
             # Convert the original frame to grayscale
             frame_grayscale = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            bottomLeftCornerOfText = (10, 30)
+            fontScale = 1
+            fontColor = (0, 255, 255)  # White color
+            lineType = 2
+
+            cv2.putText(frame_grayscale, f"Hand State: {hand_state}", 
+                        bottomLeftCornerOfText, 
+                        font, 
+                        fontScale,
+                        fontColor,
+                        lineType)
+
 
             # Draw the rectangle on the grayscale image
             cv2.rectangle(frame_grayscale, top_left, bottom_right, (255, 0, 0), 2)
