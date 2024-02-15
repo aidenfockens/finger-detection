@@ -102,6 +102,7 @@ try:
         threshold_four = 0.57
         threshold_five = 0.63
 
+
         thresholds = [threshold_zero, threshold_one, threshold_two, threshold_three, threshold_four, threshold_five]
 
         for level in pyramid:
@@ -290,10 +291,10 @@ try:
             font = cv2.FONT_HERSHEY_SIMPLEX
             bottomLeftCornerOfText = (10, 30)
             fontScale = 1
-            fontColor = (0, 255, 255)  # White color
+            fontColor = (0, 0, 255)  # White color
             lineType = 2
 
-            cv2.putText(frame_grayscale, f"Hand State: {hand_state}", 
+            cv2.putText(frame, f"Hand State: {hand_state}", 
                         bottomLeftCornerOfText, 
                         font, 
                         fontScale,
@@ -302,9 +303,34 @@ try:
 
 
             # Draw the rectangle on the grayscale image
-            cv2.rectangle(frame_grayscale, top_left, bottom_right, (255, 0, 0), 2)
+            #cv2.rectangle(frame, top_left, bottom_right, (255, 0, 0), 2)
 
             roi = skin_mask[top_left[1]:bottom_right[1], top_left[0]:bottom_right[0]]
+
+            y_coords, x_coords = np.where(roi == 255)
+
+            # Check if there are any white pixels
+            if len(x_coords) > 0 and len(y_coords) > 0:
+                # Find the bounding box of the white pixels
+                min_x, max_x = np.min(x_coords), np.max(x_coords)
+                min_y, max_y = np.min(y_coords), np.max(y_coords)
+                
+                # Adjust coordinates according to the original image's coordinate system
+                min_x += top_left[0]
+                max_x += top_left[0]
+                min_y += top_left[1]
+                max_y += top_left[1]
+                
+                # Define the top left and bottom right corners of the bounding box
+                top_left_corner = (min_x, min_y)
+                bottom_right_corner = (max_x, max_y)
+                
+                # Set the rectangle color and thickness
+                rectangle_color = (0, 255, 0)  # Green color for the rectangle
+                thickness = 2  # Thickness of the rectangle edges
+                
+                # Draw the rectangle around all white pixels in the ROI on the frame
+                cv2.rectangle(frame, top_left_corner, bottom_right_corner, rectangle_color, thickness)
 
             # Step 2: Find white pixels' coordinates and calculate the centroid
             # Find all white (255) pixel coordinates in the ROI
@@ -318,9 +344,9 @@ try:
                 # Step 3: Draw the centroid on the grayscale frame
                 centroid_color = (0, 255, 0)  # Green color for the centroid
                 centroid_radius = 5
-                cv2.circle(frame_grayscale, (centroid_x, centroid_y), centroid_radius, centroid_color, -1)
+                cv2.circle(frame, (centroid_x, centroid_y), centroid_radius, centroid_color, -1)
 
-        cv2.imshow("Best Match on Original", frame_grayscale)
+        cv2.imshow("Best Match on Original", frame)
 
 
         frame_grayscale = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -335,3 +361,5 @@ try:
 finally:
     cap.release()
     cv2.destroyAllWindows()
+
+    # [0,0,0,0,0, 0,0,0,0,0, 1,1,1,1,1, 1,1,1,1,1, 2,2,2,2,2, 2,2,2,2,2, 3,3,3,3,3, 3,3,3,3,3, 4,4,4,4,4, 4,4,4,4,4, 5,5,5,5,5, 5,5,5,5,5]
